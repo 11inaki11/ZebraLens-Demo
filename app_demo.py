@@ -391,6 +391,12 @@ def query_stream():
     return response
 
 
+@app.route('/healthz')
+def healthz():
+    """Health check endpoint for Render"""
+    return jsonify({'status': 'ok'}), 200
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5002))
     print("\n" + "="*60)
