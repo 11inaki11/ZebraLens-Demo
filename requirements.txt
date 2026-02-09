@@ -1,0 +1,8 @@
+flask
+gunicorn
+langchain
+langchain-community
+faiss-cpu
+sentence-transformers
+google-generativeai
+geopy

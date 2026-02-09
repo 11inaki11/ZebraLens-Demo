@@ -1,0 +1,2934 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZebraLens - Rare Disease Search</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.105.0/Cesium.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.105.0/Widgets/widgets.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #60a5fa;
+            --secondary: #94a3b8;
+            --accent: #38bdf8;
+            --bg-color: #0f0f14;
+            --bg-secondary: #1a1a24;
+            --card-bg: #1e1e2a;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border-color: #2d2d3a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--bg-secondary);
+            padding: 0.75rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        header .logo {
+            height: 42px;
+            width: auto;
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* LLM Toggle Switch */
+        .llm-toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.4rem 0.75rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .llm-toggle-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .llm-toggle-label.active {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .llm-toggle {
+            position: relative;
+            width: 44px;
+            height: 22px;
+            cursor: pointer;
+        }
+
+        .llm-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .llm-toggle-slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 22px;
+            transition: all 0.3s ease;
+        }
+
+        .llm-toggle-slider::before {
+            content: '';
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .llm-toggle input:checked+.llm-toggle-slider {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .llm-toggle input:checked+.llm-toggle-slider::before {
+            transform: translateX(22px);
+        }
+
+        .llm-badge {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .llm-badge.gemini {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .llm-badge.local {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* LEFT PANEL: Search & Results - 33% */
+        .info-panel {
+            width: 33%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            z-index: 5;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-section {
+            padding: 1.5rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-container {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--card-bg);
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .search-container:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+            background: var(--bg-color);
+        }
+
+        #query-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 0.5rem;
+            font-size: 0.95rem;
+            outline: none;
+            color: var(--text-main);
+        }
+
+        .search-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .search-btn:hover {
+            background: #1d4ed8;
+        }
+
+        #results-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: var(--bg-color);
+        }
+
+        .result-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            border-color: var(--accent);
+        }
+
+        .result-card.active-pin {
+            border-color: var(--primary);
+            background: rgba(96, 165, 250, 0.1);
+            box-shadow: 0 0 0 2px var(--primary);
+        }
+
+        .result-card h3 {
+            margin: 0.5rem 0;
+            font-size: 1rem;
+            line-height: 1.4;
+            color: var(--text-main);
+        }
+
+        .meta-tags {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+            font-weight: 500;
+        }
+
+        .tag-match {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .tag-location {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
+        .tag-info {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .llm-content {
+            font-size: 0.9rem;
+            color: #ffffff;
+            line-height: 1.6;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        /* RIGHT PANEL: Map - 67% with Space Theme */
+        .map-panel {
+            width: 67%;
+            position: relative;
+            background: radial-gradient(ellipse at 80% 20%, rgba(255, 200, 100, 0.15) 0%, transparent 40%),
+                radial-gradient(ellipse at center, #0a0a1a 0%, #000005 100%);
+            overflow: hidden;
+        }
+
+        /* Starfield Layer */
+        .map-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                radial-gradient(1px 1px at 20px 30px, white, transparent),
+                radial-gradient(1px 1px at 40px 70px, rgba(255, 255, 255, 0.8), transparent),
+                radial-gradient(1px 1px at 90px 40px, rgba(255, 255, 255, 0.6), transparent),
+                radial-gradient(2px 2px at 160px 120px, white, transparent),
+                radial-gradient(1px 1px at 230px 80px, rgba(255, 255, 255, 0.7), transparent),
+                radial-gradient(1px 1px at 300px 150px, white, transparent),
+                radial-gradient(1.5px 1.5px at 400px 60px, rgba(255, 255, 255, 0.9), transparent),
+                radial-gradient(1px 1px at 500px 200px, white, transparent),
+                radial-gradient(1px 1px at 50px 180px, rgba(255, 255, 255, 0.5), transparent),
+                radial-gradient(2px 2px at 120px 250px, white, transparent),
+                radial-gradient(1px 1px at 200px 300px, rgba(255, 255, 255, 0.6), transparent),
+                radial-gradient(1px 1px at 350px 280px, white, transparent),
+                radial-gradient(1.5px 1.5px at 450px 320px, rgba(255, 255, 255, 0.8), transparent),
+                radial-gradient(1px 1px at 550px 350px, white, transparent),
+                radial-gradient(1px 1px at 80px 400px, rgba(255, 255, 255, 0.7), transparent),
+                radial-gradient(2px 2px at 180px 450px, white, transparent);
+            background-size: 600px 500px;
+            animation: twinkle 4s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Sun glow */
+        .map-panel::after {
+            content: '';
+            position: absolute;
+            top: 5%;
+            right: 8%;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, rgba(255, 220, 150, 0.8) 0%, rgba(255, 180, 80, 0.4) 40%, transparent 70%);
+            border-radius: 50%;
+            box-shadow: 0 0 60px 30px rgba(255, 200, 100, 0.3),
+                0 0 100px 60px rgba(255, 180, 80, 0.15);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes twinkle {
+            0% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 1;
+            /* Above starfield */
+        }
+
+        /* Custom Map Control Buttons */
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 6px;
+        }
+
+        .map-controls button {
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(48, 51, 54, 0.85);
+            color: #edffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .map-controls button:hover {
+            background: rgba(68, 71, 74, 0.95);
+        }
+
+        .map-controls button:active {
+            background: rgba(88, 91, 94, 1);
+        }
+
+        /* Filter Toolbar */
+        .filter-toolbar {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+            padding: 8px 16px;
+            background: rgba(20, 20, 30, 0.9);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .filter-input {
+            padding: 6px 10px;
+            border: 1px solid rgba(100, 116, 139, 0.4);
+            border-radius: 4px;
+            background: rgba(30, 30, 45, 0.8);
+            color: #edffff;
+            font-size: 0.8rem;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .year-input {
+            width: 60px;
+            text-align: center;
+        }
+
+        .location-input {
+            width: 140px;
+        }
+
+        /* Custom Country Dropdown */
+        .country-dropdown-container {
+            position: relative;
+        }
+
+        .country-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            width: 200px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            display: none;
+            margin-bottom: 4px;
+        }
+
+        .country-dropdown.show {
+            display: block;
+        }
+
+        .country-dropdown-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            transition: background 0.2s;
+        }
+
+        .country-dropdown-item:hover {
+            background: rgba(96, 165, 250, 0.2);
+        }
+
+        .country-dropdown-item.highlighted {
+            background: rgba(96, 165, 250, 0.3);
+        }
+
+        .country-dropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .country-dropdown::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .country-dropdown::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        .filter-sep {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .mode-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid rgba(100, 116, 139, 0.4);
+            border-radius: 4px;
+            background: rgba(30, 30, 45, 0.8);
+            color: #94a3b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .mode-btn:hover {
+            background: rgba(50, 50, 70, 1);
+            color: #edffff;
+        }
+
+        .mode-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .filter-apply-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background: var(--primary);
+            color: white;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .filter-apply-btn:hover {
+            background: #0284c7;
+        }
+
+        .filter-clear-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-radius: 4px;
+            background: transparent;
+            color: #ef4444;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .filter-clear-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        #status-message {
+            text-align: center;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            color: #ffffff;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: none;
+            /* Hidden by default */
+        }
+
+        #status-message.active {
+            display: block;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Map Legend/Overlay */
+        .map-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* Tooltip */
+        #map-tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 200;
+            display: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            max-width: 250px;
+        }
+
+        /* Chat Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .chat-modal {
+            background: var(--card-bg);
+            width: 500px;
+            height: 600px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+        }
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: var(--bg-color);
+        }
+
+        .chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 0.5rem;
+            background: var(--card-bg);
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: white;
+        }
+
+        .message.system {
+            align-self: flex-start;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        /* Card Actions */
+        .card-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            border-top: 1px dotted #e2e8f0;
+            padding-top: 0.5rem;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-sm:hover {
+            background: #f8fafc;
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* ===== DEMO VERSION STYLES ===== */
+        .demo-badge {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Welcome Modal */
+        .welcome-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(8px);
+        }
+
+        .welcome-modal {
+            background: var(--card-bg);
+            width: 90%;
+            max-width: 550px;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .welcome-modal h2 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .welcome-modal .subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .welcome-option {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .welcome-option:hover {
+            border-color: var(--primary);
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        .welcome-option.selected {
+            border-color: var(--primary);
+            background: rgba(96, 165, 250, 0.15);
+        }
+
+        .welcome-option h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .welcome-option p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .welcome-option .api-key-input {
+            width: 100%;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-main);
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+
+        .welcome-option .api-key-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .welcome-btn {
+            width: 100%;
+            padding: 0.875rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.2s;
+        }
+
+        .welcome-btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+        }
+
+        .welcome-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(96, 165, 250, 0.4);
+        }
+
+        .welcome-btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .welcome-footer {
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .welcome-footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        /* Demo Query Dropdown */
+        .demo-dropdown-container {
+            display: none;
+        }
+
+        .demo-dropdown-container.active {
+            display: block;
+        }
+
+        .demo-query-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-main);
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .demo-query-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .api-key-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 6px;
+            color: #22c55e;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .search-container.hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ===== WELCOME MODAL ===== -->
+    <div id="welcome-modal" class="welcome-modal-overlay">
+        <div class="welcome-modal">
+            <h2>🦓 Welcome to ZebraLens Demo</h2>
+            <p class="subtitle">
+                This is a demonstration version for the hackathon. Since this is a public demo,
+                we don't expose our API keys. Choose how you'd like to explore:
+            </p>
+
+            <!-- Option 1: Use preloaded examples -->
+            <div class="welcome-option" id="option-preloaded" onclick="selectOption('preloaded')">
+                <h3><i class="fas fa-database"></i> Use Preloaded Examples</h3>
+                <p>Explore pre-generated clinical case searches. No API key required.
+                    Perfect for a quick demonstration of ZebraLens capabilities.</p>
+            </div>
+
+            <!-- Option 2: Provide your own API key -->
+            <div class="welcome-option" id="option-apikey" onclick="selectOption('apikey')">
+                <h3><i class="fas fa-key"></i> Use Your Own Gemini API Key</h3>
+                <p>Enter your Google Gemini API key to perform live searches.
+                    Your key is only used for this session and is never stored.</p>
+                <input type="password" id="api-key-input" class="api-key-input"
+                    placeholder="Enter your Gemini API key..." onclick="event.stopPropagation()" style="display:none;">
+                <div id="api-key-status" style="margin-top:0.5rem; display:none;"></div>
+            </div>
+
+            <button id="welcome-continue-btn" class="welcome-btn welcome-btn-primary" onclick="startDemo()" disabled>
+                Continue
+            </button>
+
+            <div class="welcome-footer">
+                Get your free API key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI
+                    Studio</a>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        <img src="/static/logo.png" alt="ZebraLens" class="logo">
+        <span class="demo-badge">DEMO</span>
+        <div style="flex:1"></div>
+
+        <!-- Mode indicator (shown after selection) -->
+        <div id="mode-indicator" style="display:none;">
+            <span class="llm-badge" id="mode-badge">Preloaded</span>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- LEFT PANEL: Search & Results -->
+        <div class="info-panel">
+            <div class="search-section">
+                <!-- Standard search (for API key mode) -->
+                <div id="search-container-live" class="search-container" style="display:none;">
+                    <input type="text" id="query-input"
+                        placeholder="Describe clinical case (e.g., 'Child with fever and rash after travel')..."
+                        onkeypress="handleKeyPress(event)">
+                    <button class="search-btn" onclick="performSearch()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+
+                <!-- Demo dropdown (for preloaded mode) -->
+                <div id="demo-dropdown-container" class="demo-dropdown-container" style="display:none;">
+                    <select id="demo-query-select" class="demo-query-select" onchange="loadPreloadedQuery()">
+                        <option value="">-- Select a clinical case to explore --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="status-message">Ready to search</div>
+
+            <div id="results-area">
+                <!-- Cards will be injected here -->
+                <div style="text-align: center; color: #94a3b8; margin-top: 3rem;">
+                    <i class="fas fa-globe-americas fa-3x" style="margin-bottom: 1rem; display: block;"></i>
+                    <p>Select a demo case or enter your API key to explore</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: CesiumJS Map -->
+        <div class="map-panel">
+            <div id="cesiumContainer"></div>
+            <!-- Tooltip -->
+            <div id="map-tooltip"></div>
+            <!-- Selection Rectangle -->
+            <div id="selection-rect"
+                style="display:none; position:absolute; border:2px dashed #0ea5e9; background:rgba(14,165,233,0.1); pointer-events:none; z-index:100;">
+            </div>
+
+            <!-- Custom Map Controls (Reliable) -->
+            <div class="map-controls">
+                <button id="btn-home" title="Reset View" onclick="resetToHome()">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                    </svg>
+                </button>
+                <button id="btn-scene-mode" title="Switch 2D/3D" onclick="toggleSceneMode()">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Filter Toolbar -->
+            <div class="filter-toolbar">
+                <!-- Date Range Filter -->
+                <div class="filter-group">
+                    <label><i class="fas fa-calendar"></i></label>
+                    <input type="number" id="filter-year-start" placeholder="2000" min="1990" max="2030"
+                        class="filter-input year-input">
+                    <span class="filter-sep">—</span>
+                    <input type="number" id="filter-year-end" placeholder="2025" min="1990" max="2030"
+                        class="filter-input year-input">
+                </div>
+
+                <!-- Location Search -->
+                <div class="filter-group country-dropdown-container">
+                    <label><i class="fas fa-search"></i></label>
+                    <input type="text" id="filter-location" placeholder="Country or region..."
+                        class="filter-input location-input"
+                        onkeypress="if(event.key==='Enter') { hideCountryDropdown(); applyFilters(); }"
+                        oninput="filterCountryDropdown()" onfocus="showCountryDropdown()" autocomplete="off">
+                    <div id="country-dropdown" class="country-dropdown"></div>
+                </div>
+
+                <!-- Apply/Clear -->
+                <div class="filter-group">
+                    <button class="filter-apply-btn" onclick="applyFilters()">
+                        <i class="fas fa-filter"></i> Apply
+                    </button>
+                    <button class="filter-clear-btn" onclick="clearFilters()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chat-modal" class="modal-overlay">
+        <div class="chat-modal">
+            <div class="chat-header">
+                <h3 style="margin:0; font-size:1rem;" id="chat-title">Chat with Case</h3>
+                <button onclick="closeChat()" class="btn-sm" style="border:none; font-size:1.2rem;">&times;</button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <!-- Messages go here -->
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Ask about this case..."
+                    style="padding:0.5rem; border:1px solid #cbd5e1; border-radius:6px; flex:1;"
+                    onkeypress="handleChatKey(event)">
+                <button onclick="sendChatMessage()" class="btn-sm"
+                    style="background:var(--primary); color:white; border:none; padding:0.5rem 1rem;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== DEMO MODE CONFIGURATION ==========
+        let demoMode = null; // 'preloaded' or 'apikey'
+        let preloadedData = {}; // Will store fetched preloaded data
+
+        // Option selection in welcome modal
+        function selectOption(option) {
+            const optionPreloaded = document.getElementById('option-preloaded');
+            const optionApikey = document.getElementById('option-apikey');
+            const apiKeyInput = document.getElementById('api-key-input');
+            const continueBtn = document.getElementById('welcome-continue-btn');
+
+            // Reset selection styles
+            optionPreloaded.classList.remove('selected');
+            optionApikey.classList.remove('selected');
+
+            if (option === 'preloaded') {
+                demoMode = 'preloaded';
+                optionPreloaded.classList.add('selected');
+                apiKeyInput.style.display = 'none';
+                continueBtn.disabled = false;
+            } else if (option === 'apikey') {
+                demoMode = 'apikey';
+                optionApikey.classList.add('selected');
+                apiKeyInput.style.display = 'block';
+                apiKeyInput.focus();
+                // Enable continue only if API key is entered
+                continueBtn.disabled = apiKeyInput.value.trim().length < 10;
+
+                // Listen for input changes
+                apiKeyInput.oninput = function () {
+                    continueBtn.disabled = this.value.trim().length < 10;
+                };
+            }
+        }
+
+        // Start the demo based on selected mode
+        async function startDemo() {
+            const modal = document.getElementById('welcome-modal');
+            const modeIndicator = document.getElementById('mode-indicator');
+            const modeBadge = document.getElementById('mode-badge');
+
+            if (demoMode === 'preloaded') {
+                // Load preloaded data and show dropdown
+                await loadPreloadedOptions();
+                document.getElementById('demo-dropdown-container').style.display = 'block';
+                document.getElementById('search-container-live').style.display = 'none';
+                modeBadge.textContent = 'Preloaded Demo';
+                modeBadge.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+            } else if (demoMode === 'apikey') {
+                // Validate and set API key
+                const apiKey = document.getElementById('api-key-input').value.trim();
+                const statusDiv = document.getElementById('api-key-status');
+
+                statusDiv.style.display = 'block';
+                statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validating API key...';
+                statusDiv.style.color = '#94a3b8';
+
+                try {
+                    const response = await fetch('/set_api_key', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> API key validated!';
+                        statusDiv.style.color = '#22c55e';
+
+                        setTimeout(() => {
+                            document.getElementById('search-container-live').style.display = 'flex';
+                            document.getElementById('demo-dropdown-container').style.display = 'none';
+                            modeBadge.textContent = 'Live (Gemini API)';
+                            modeBadge.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                            modal.style.display = 'none';
+                            modeIndicator.style.display = 'block';
+                        }, 1000);
+                        return;
+                    } else {
+                        statusDiv.innerHTML = '<i class="fas fa-times-circle"></i> ' + result.error;
+                        statusDiv.style.color = '#ef4444';
+                        return;
+                    }
+                } catch (error) {
+                    statusDiv.innerHTML = '<i class="fas fa-times-circle"></i> Connection error';
+                    statusDiv.style.color = '#ef4444';
+                    return;
+                }
+            }
+
+            // Hide modal and show mode indicator
+            modal.style.display = 'none';
+            modeIndicator.style.display = 'block';
+        }
+
+        // Load preloaded demo options into dropdown
+        async function loadPreloadedOptions() {
+            try {
+                const response = await fetch('/get_demo_options');
+                const data = await response.json();
+
+                const select = document.getElementById('demo-query-select');
+                data.options.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.id;
+                    option.textContent = opt.label;
+                    option.dataset.query = opt.query;
+                    select.appendChild(option);
+                });
+
+                // Also store for reference
+                preloadedData.options = data.options;
+            } catch (error) {
+                console.error('Failed to load demo options:', error);
+            }
+        }
+
+        // Load a preloaded query and display results
+        async function loadPreloadedQuery() {
+            const select = document.getElementById('demo-query-select');
+            const queryId = select.value;
+
+            if (!queryId) return;
+
+            // Show loading state
+            updateStatus('Loading preloaded results...', true);
+
+            try {
+                const response = await fetch(`/get_preloaded_results/${queryId}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    updateStatus('Error: ' + data.error, false);
+                    return;
+                }
+
+                // Store results and display them
+                displayPreloadedResults(data);
+                updateStatus(`Showing ${data.results.length} preloaded results for: ${data.label}`, false);
+
+            } catch (error) {
+                console.error('Failed to load preloaded results:', error);
+                updateStatus('Error loading results', false);
+            }
+        }
+
+        // Display preloaded results
+        function displayPreloadedResults(data) {
+            const resultsArea = document.getElementById('results-area');
+            resultsArea.innerHTML = '';
+
+            // Clear existing map entities
+            Object.values(caseEntities).forEach(entity => {
+                viewer.entities.remove(entity);
+            });
+            caseEntities = {};
+            caseDataStore = {};
+
+            data.results.forEach(result => {
+                // Store case data
+                caseDataStore[result.id] = result;
+
+                // Create result card
+                const card = createResultCard(result);
+                resultsArea.appendChild(card);
+
+                // Add to map using pre-geocoded coordinates (if available)
+                if (result.location_coords && result.location_coords.lat && result.location_coords.lon) {
+                    addCaseToMapWithCoords(result, result.location_coords);
+                }
+            });
+        }
+
+        // Add case to map using pre-geocoded coordinates (for preloaded data)
+        function addCaseToMapWithCoords(result, coords) {
+            // Add slight randomization to prevent overlap
+            const lat = coords.lat + (Math.random() - 0.5) * 2;
+            const lon = coords.lon + (Math.random() - 0.5) * 2;
+
+            // Use createPinImage with similarity score for colored pin
+            const score = result.similarity_percent || 80;
+
+            const entity = viewer.entities.add({
+                id: `case-${result.id}`,
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
+                billboard: {
+                    image: createPinImage(score),
+                    width: 32,
+                    height: 48,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+                },
+                properties: {
+                    caseId: result.id,
+                    title: result.title,
+                    score: score
+                }
+            });
+            caseEntities[result.id] = entity;
+        }
+
+        // Helper: Add case to map by country name (for live search - calls geocoding API)
+        async function addCaseToMapByCountry(result) {
+            try {
+                const response = await fetch(`/geocode_country?country=${encodeURIComponent(result.location_heuristic)}`);
+                const geo = await response.json();
+
+                if (geo.lat && geo.lon) {
+                    addCaseToMapWithCoords(result, geo);
+                }
+            } catch (error) {
+                console.log(`Could not geocode ${result.location_heuristic}`);
+            }
+        }
+
+        // Create a result card element
+        function createResultCard(result) {
+            const card = document.createElement('div');
+            card.className = 'result-card';
+            card.id = `case-${result.id}`;
+            card.dataset.caseId = result.id;
+            card.style.cursor = 'pointer';
+
+            // Add click handler to zoom to this case on the map
+            card.onclick = function () {
+                highlightCaseOnMap(result.id);
+            };
+
+            card.innerHTML = `
+                <div class="result-header">
+                    <span class="case-id">Case ${result.id}</span>
+                    <span class="similarity-score">${result.similarity_percent?.toFixed(1) || 'N/A'}% match</span>
+                </div>
+                <h3 class="result-title">${result.title || 'Untitled Case'}</h3>
+                <div class="result-meta">
+                    <span><i class="fas fa-user"></i> ${result.age || 'Unknown'}, ${result.gender || 'Unknown'}</span>
+                    <span><i class="fas fa-calendar"></i> ${result.pub_date || 'Unknown'}</span>
+                    ${result.location || result.location_heuristic ? `<span><i class="fas fa-map-marker-alt"></i> ${result.location || result.location_heuristic}</span>` : ''}
+                </div>
+                <div class="result-analysis">
+                    <strong>AI Analysis:</strong>
+                    <p>${result.llm_response || 'No analysis available'}</p>
+                </div>
+                ${result.pmid ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${result.pmid}/" target="_blank" class="pubmed-link" onclick="event.stopPropagation();"><i class="fas fa-external-link-alt"></i> View on PubMed</a>` : ''}
+            `;
+
+            return card;
+        }
+
+        // Update status message
+        function updateStatus(message, showSpinner = false) {
+            const statusEl = document.getElementById('status-message');
+            statusEl.innerHTML = showSpinner
+                ? `<span class="loading-spinner"></span>${message}`
+                : message;
+            statusEl.classList.add('active');
+        }
+
+        // --- CESIUM MAP SETUP ---
+        let viewer;
+        let caseEntities = {}; // Map case ID to entity
+        let caseDataStore = {}; // Store raw case data by ID {content, title, ...}
+
+        // LLM Configuration - Using Local LLM
+        let useGemini = false;
+
+        function toggleLLM() {
+            const toggle = document.getElementById('llm-toggle');
+            const labelLocal = document.getElementById('label-local');
+            const labelGemini = document.getElementById('label-gemini');
+            const badge = document.getElementById('llm-badge');
+
+            useGemini = toggle.checked;
+
+            if (useGemini) {
+                labelGemini.classList.add('active');
+                labelLocal.classList.remove('active');
+                badge.textContent = 'Gemini 3 Pro';
+                badge.className = 'llm-badge gemini';
+            } else {
+                labelLocal.classList.add('active');
+                labelGemini.classList.remove('active');
+                badge.textContent = 'Local LLM';
+                badge.className = 'llm-badge local';
+            }
+
+            console.log(`LLM mode switched to: ${useGemini ? 'Gemini' : 'Local'}`);
+        }
+
+        // Country dropdown data and functions
+        const ALL_COUNTRIES = [
+            "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia",
+            "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados",
+            "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina",
+            "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia",
+            "Cameroon", "Canada", "Cape Verde", "Central African Republic", "Chad", "Chile", "China",
+            "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+            "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador",
+            "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France",
+            "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea",
+            "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia",
+            "Iran", "Iraq", "Ireland", "Israel", "Italy", "Ivory Coast", "Jamaica", "Japan", "Jordan",
+            "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon",
+            "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar",
+            "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania",
+            "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco",
+            "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua",
+            "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau",
+            "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland",
+            "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia",
+            "Saint Vincent", "Samoa", "San Marino", "Saudi Arabia", "Senegal", "Serbia", "Seychelles",
+            "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia",
+            "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname",
+            "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste",
+            "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda",
+            "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan",
+            "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe",
+            "USA", "UK", "UAE"
+        ];
+
+        function showCountryDropdown() {
+            const dropdown = document.getElementById('country-dropdown');
+            const input = document.getElementById('filter-location');
+            filterCountryDropdown();
+            dropdown.classList.add('show');
+        }
+
+        function hideCountryDropdown() {
+            const dropdown = document.getElementById('country-dropdown');
+            dropdown.classList.remove('show');
+        }
+
+        function filterCountryDropdown() {
+            const input = document.getElementById('filter-location');
+            const dropdown = document.getElementById('country-dropdown');
+            const filter = input.value.toLowerCase();
+
+            const filtered = filter
+                ? ALL_COUNTRIES.filter(c => c.toLowerCase().includes(filter))
+                : ALL_COUNTRIES;
+
+            dropdown.innerHTML = filtered.slice(0, 20).map(country =>
+                `<div class="country-dropdown-item" onclick="selectCountry('${country}')">${country}</div>`
+            ).join('');
+
+            if (filtered.length > 20) {
+                dropdown.innerHTML += `<div class="country-dropdown-item" style="color: var(--text-muted); font-style: italic;">+ ${filtered.length - 20} more...</div>`;
+            }
+        }
+
+        function selectCountry(country) {
+            document.getElementById('filter-location').value = country;
+            hideCountryDropdown();
+            applyFilters();
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function (e) {
+            const container = document.querySelector('.country-dropdown-container');
+            if (container && !container.contains(e.target)) {
+                hideCountryDropdown();
+            }
+        });
+
+        // Debug logging function (logs to console since we can't easily add UI panel)
+        function logToUi(msg) {
+            console.log(`[ZEBRA_DEBUG] ${msg}`);
+        }
+
+        async function initMap() {
+            try {
+                // Initialize Viewer with custom controls (native widgets disabled)
+                viewer = new Cesium.Viewer('cesiumContainer', {
+                    imageryProvider: false,
+                    animation: false,
+                    timeline: false,
+                    navigationHelpButton: false,
+                    homeButton: false,  // Using custom button
+                    sceneModePicker: false,  // Using custom button
+                    baseLayerPicker: false,
+                    geocoder: false,
+                    infoBox: false,
+                    selectionIndicator: false, // Disabled - using custom ground-attached indicator
+                    contextOptions: {
+                        webgl: {
+                            alpha: true
+                        }
+                    }
+                });
+
+                // Smooth scene mode transitions
+                viewer.scene.morphDuration = 1.0;
+
+                // Remove credits (cleaner UI)
+                viewer.cesiumWidget.creditContainer.style.display = 'none';
+
+                // DARK THEME: Use CartoDB Dark Matter for sleek tech aesthetic
+                try {
+                    console.log("Loading dark theme imagery (CartoDB Dark Matter)...");
+                    // CartoDB Dark Matter - dark gray/black with clear land/water distinction
+                    const darkProvider = new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+                        credit: 'CartoDB'
+                    });
+                    viewer.imageryLayers.addImageryProvider(darkProvider);
+                    console.log("Dark theme imagery loaded successfully.");
+                } catch (err) {
+                    console.warn("Dark imagery failed to load. Falling back to Stamen Toner:", err);
+                    try {
+                        // Fallback: Stamen Toner (black & white, very clean)
+                        const tonerProvider = new Cesium.UrlTemplateImageryProvider({
+                            url: 'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png',
+                            credit: 'Stamen/Stadia'
+                        });
+                        viewer.imageryLayers.addImageryProvider(tonerProvider);
+                    } catch (err2) {
+                        console.warn("Stamen also failed, using OSM fallback");
+                        viewer.imageryLayers.addImageryProvider(
+                            new Cesium.OpenStreetMapImageryProvider({
+                                url: 'https://a.tile.openstreetmap.org/'
+                            })
+                        );
+                    }
+                }
+
+                // AESTHETICS & LIGHTING - Starry space background with sun
+                viewer.scene.globe.enableLighting = true; // Enable day/night lighting effect
+                viewer.scene.globe.showGroundAtmosphere = true; // Atmospheric glow around globe
+                viewer.scene.skyBox.show = true; // Show starfield background
+                viewer.scene.backgroundColor = Cesium.Color.BLACK; // Deep space black
+                viewer.scene.sun.show = true; // Show decorative sun
+                viewer.scene.moon.show = true; // Show decorative moon
+
+                // Brighten the dark side of the globe (ambient light)
+                // minimumBrightness ensures dark side is never fully black (0 = black, 1 = full bright)
+                viewer.scene.globe.minimumBrightness = 0.8;  // 80% minimum brightness - dark side only slightly darker
+                viewer.scene.light.intensity = 2.5;  // Brighter overall lighting
+
+                // CAMERA CONTROLS: Set initial view and store for home
+                const initialView = {
+                    destination: Cesium.Cartesian3.fromDegrees(0, 20, 25000000), // Centered, zoomed out
+                    orientation: {
+                        heading: 0,
+                        pitch: Cesium.Math.toRadians(-90), // Looking straight down
+                        roll: 0
+                    }
+                };
+                viewer.camera.setView(initialView);
+                window.initialCameraView = initialView;
+
+                // ========== AUTO-ROTATION SYSTEM ==========
+                let autoRotationEnabled = true;
+                const ROTATION_SPEED = 0.01; // Degrees per frame (very slow)
+                let rotationHandler = null;
+
+                // Start auto-rotation
+                function startAutoRotation() {
+                    if (rotationHandler) return; // Already running
+                    autoRotationEnabled = true;
+
+                    rotationHandler = viewer.clock.onTick.addEventListener(function (clock) {
+                        if (!autoRotationEnabled) return;
+                        if (viewer.scene.mode !== Cesium.SceneMode.SCENE3D) return; // Only rotate in 3D mode
+
+                        // Rotate camera around the Earth
+                        viewer.camera.rotate(Cesium.Cartesian3.UNIT_Z, Cesium.Math.toRadians(ROTATION_SPEED));
+                    });
+
+                    console.log('[ROTATION] Auto-rotation started');
+                }
+
+                // Stop auto-rotation
+                function stopAutoRotation() {
+                    autoRotationEnabled = false;
+                    if (rotationHandler) {
+                        rotationHandler(); // Remove the event listener
+                        rotationHandler = null;
+                    }
+                    console.log('[ROTATION] Auto-rotation stopped');
+                }
+
+                // Detect user interactions to stop rotation
+                const screenSpaceHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+                // Stop on mouse down (click or drag start)
+                screenSpaceHandler.setInputAction(function () {
+                    if (autoRotationEnabled) {
+                        stopAutoRotation();
+                    }
+                }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+                // Stop on mouse wheel (zoom)
+                screenSpaceHandler.setInputAction(function () {
+                    if (autoRotationEnabled) {
+                        stopAutoRotation();
+                    }
+                }, Cesium.ScreenSpaceEventType.WHEEL);
+
+                // Stop on right-click (tilt/rotate manually)
+                screenSpaceHandler.setInputAction(function () {
+                    if (autoRotationEnabled) {
+                        stopAutoRotation();
+                    }
+                }, Cesium.ScreenSpaceEventType.RIGHT_DOWN);
+
+                // Stop on middle-click
+                screenSpaceHandler.setInputAction(function () {
+                    if (autoRotationEnabled) {
+                        stopAutoRotation();
+                    }
+                }, Cesium.ScreenSpaceEventType.MIDDLE_DOWN);
+
+                // Start rotation initially
+                startAutoRotation();
+
+                // HOME BUTTON: Reset to initial view AND restart rotation
+                window.resetToHome = function () {
+                    viewer.camera.flyTo({
+                        destination: initialView.destination,
+                        orientation: initialView.orientation,
+                        duration: 1.5,
+                        complete: function () {
+                            // Restart auto-rotation after camera finishes moving
+                            startAutoRotation();
+                        }
+                    });
+                };
+
+                // Expose stop function globally so other code can stop rotation
+                window.stopGlobeRotation = stopAutoRotation;
+
+                // SCENE MODE TOGGLE: Switch between 2D and 3D
+                window.toggleSceneMode = function () {
+                    if (viewer.scene.mode === Cesium.SceneMode.SCENE3D) {
+                        viewer.scene.morphTo2D(1.0);  // 1 second transition
+                    } else {
+                        viewer.scene.morphTo3D(1.0);  // 1 second transition
+                    }
+                };
+
+                // ========== FILTER FUNCTIONS ==========
+                let countryClickMode = false;
+                let dragSelectMode = false;
+                let dragHandler = null;
+                let currentFilterBounds = null;
+
+                // Zoom to a location by name
+                window.zoomToLocation = function (locationName) {
+                    // Stop globe rotation when zooming to a location
+                    if (window.stopGlobeRotation) window.stopGlobeRotation();
+
+                    if (!locationName) return;
+                    const coords = COUNTRY_COORDS[locationName];
+                    if (coords) {
+                        viewer.camera.flyTo({
+                            destination: Cesium.Cartesian3.fromDegrees(coords[0], coords[1], 5000000),
+                            duration: 1.5
+                        });
+                        // Also set as filter
+                        document.getElementById('filter-location').value = locationName;
+                    } else {
+                        console.log(`Location not found: ${locationName}`);
+                    }
+                };
+
+                // Toggle country click mode
+                window.toggleCountryClickMode = function () {
+                    countryClickMode = !countryClickMode;
+                    dragSelectMode = false; // Disable other mode
+                    document.getElementById('btn-country-mode').classList.toggle('active', countryClickMode);
+                    document.getElementById('btn-drag-mode').classList.remove('active');
+                    document.body.style.cursor = countryClickMode ? 'crosshair' : 'default';
+                };
+
+                // Toggle drag select mode
+                window.toggleDragSelectMode = function () {
+                    dragSelectMode = !dragSelectMode;
+                    countryClickMode = false; // Disable other mode
+                    document.getElementById('btn-drag-mode').classList.toggle('active', dragSelectMode);
+                    document.getElementById('btn-country-mode').classList.remove('active');
+                    document.body.style.cursor = dragSelectMode ? 'crosshair' : 'default';
+
+                    if (dragSelectMode) {
+                        // Lock camera controls during drag select
+                        viewer.scene.screenSpaceCameraController.enableRotate = false;
+                        viewer.scene.screenSpaceCameraController.enableTranslate = false;
+                        viewer.scene.screenSpaceCameraController.enableZoom = false;
+                        enableDragSelection();
+                    } else {
+                        // Unlock camera controls
+                        viewer.scene.screenSpaceCameraController.enableRotate = true;
+                        viewer.scene.screenSpaceCameraController.enableTranslate = true;
+                        viewer.scene.screenSpaceCameraController.enableZoom = true;
+                        disableDragSelection();
+                    }
+                };
+
+                // Enable drag selection handler
+                function enableDragSelection() {
+                    if (dragHandler) return;
+                    let startPos = null;
+                    const canvas = viewer.scene.canvas;
+
+                    dragHandler = new Cesium.ScreenSpaceEventHandler(canvas);
+                    const selectionRect = document.getElementById('selection-rect');
+
+                    dragHandler.setInputAction(function (click) {
+                        if (dragSelectMode) {
+                            startPos = click.position;
+                            // Show selection rectangle at start
+                            selectionRect.style.display = 'block';
+                            selectionRect.style.left = startPos.x + 'px';
+                            selectionRect.style.top = startPos.y + 'px';
+                            selectionRect.style.width = '0px';
+                            selectionRect.style.height = '0px';
+                        }
+                    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+                    // Update rectangle during drag
+                    dragHandler.setInputAction(function (movement) {
+                        if (dragSelectMode && startPos) {
+                            const currentPos = movement.endPosition;
+                            const left = Math.min(startPos.x, currentPos.x);
+                            const top = Math.min(startPos.y, currentPos.y);
+                            const width = Math.abs(currentPos.x - startPos.x);
+                            const height = Math.abs(currentPos.y - startPos.y);
+
+                            selectionRect.style.left = left + 'px';
+                            selectionRect.style.top = top + 'px';
+                            selectionRect.style.width = width + 'px';
+                            selectionRect.style.height = height + 'px';
+                        }
+                    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+                    dragHandler.setInputAction(function (click) {
+                        if (dragSelectMode && startPos) {
+                            const endPos = click.position;
+
+                            // Hide selection rectangle
+                            selectionRect.style.display = 'none';
+
+                            // Convert screen to cartographic
+                            const startCart = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(startPos.x, startPos.y));
+                            const endCart = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(endPos.x, endPos.y));
+
+                            if (startCart && endCart) {
+                                const startGeo = Cesium.Cartographic.fromCartesian(startCart);
+                                const endGeo = Cesium.Cartographic.fromCartesian(endCart);
+
+                                currentFilterBounds = {
+                                    west: Math.min(Cesium.Math.toDegrees(startGeo.longitude), Cesium.Math.toDegrees(endGeo.longitude)),
+                                    east: Math.max(Cesium.Math.toDegrees(startGeo.longitude), Cesium.Math.toDegrees(endGeo.longitude)),
+                                    south: Math.min(Cesium.Math.toDegrees(startGeo.latitude), Cesium.Math.toDegrees(endGeo.latitude)),
+                                    north: Math.max(Cesium.Math.toDegrees(startGeo.latitude), Cesium.Math.toDegrees(endGeo.latitude))
+                                };
+
+                                console.log("Selected bounds:", currentFilterBounds);
+                                applyFilters(); // Auto-apply
+                            }
+                            startPos = null;
+                        }
+                    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+                }
+
+                function disableDragSelection() {
+                    if (dragHandler) {
+                        dragHandler.destroy();
+                        dragHandler = null;
+                    }
+                    currentFilterBounds = null;
+                }
+
+                // Apply all filters
+                window.applyFilters = async function () {
+                    // Stop globe rotation when filtering
+                    if (window.stopGlobeRotation) window.stopGlobeRotation();
+
+                    const yearStart = parseInt(document.getElementById('filter-year-start').value) || 0;
+                    const yearEnd = parseInt(document.getElementById('filter-year-end').value) || 9999;
+                    const locationFilter = document.getElementById('filter-location').value;
+                    const locationFilterLower = locationFilter.toLowerCase();
+
+                    console.log(`Applying filters: years ${yearStart}-${yearEnd}, location: ${locationFilter}`);
+
+                    // Auto-zoom to country if location filter is set
+                    if (locationFilter && locationFilter.length > 1) {
+                        try {
+                            const resp = await fetch(`/geocode_country?country=${encodeURIComponent(locationFilter)}`);
+                            if (resp.ok) {
+                                const data = await resp.json();
+                                viewer.camera.flyTo({
+                                    destination: Cesium.Cartesian3.fromDegrees(data.lon, data.lat, 5000000),
+                                    duration: 1.5
+                                });
+                            }
+                        } catch (e) {
+                            console.log('Geocoding failed:', e);
+                        }
+                    }
+
+                    let visibleCount = 0;
+                    let visibleCaseIds = [];
+
+                    // Helper function to check if a case matches the filters
+                    function checkCaseVisibility(caseId, data) {
+                        if (!data) return false;
+
+                        let visible = true;
+
+                        // Date filter
+                        if (data.pub_date) {
+                            const year = parseInt(data.pub_date.substring(0, 4));
+                            if (year < yearStart || year > yearEnd) {
+                                visible = false;
+                            }
+                        }
+
+                        // Location filter (COUNTRY MATCHING - STRICT)
+                        if (locationFilterLower && visible) {
+                            const loc = data.location || data.location_heuristic || '';
+                            const caseCountry = extractCountryFromLocation(loc);
+                            const filterCountry = extractCountryFromLocation(locationFilter) || locationFilter.trim();
+
+                            const normalizedCaseCountry = caseCountry ? caseCountry.toLowerCase() : null;
+                            const normalizedFilterCountry = filterCountry.toLowerCase();
+
+                            // If case has no valid country, HIDE it when filtering by country
+                            if (!normalizedCaseCountry) {
+                                visible = false;
+                            } else {
+                                // Check exact match
+                                const exactMatch = normalizedCaseCountry === normalizedFilterCountry;
+
+                                // Check common aliases
+                                const aliasMatch = (
+                                    (normalizedFilterCountry === 'usa' && normalizedCaseCountry === 'united states') ||
+                                    (normalizedFilterCountry === 'united states' && normalizedCaseCountry === 'usa') ||
+                                    (normalizedFilterCountry === 'uk' && normalizedCaseCountry === 'united kingdom') ||
+                                    (normalizedFilterCountry === 'united kingdom' && normalizedCaseCountry === 'uk') ||
+                                    (normalizedFilterCountry === 'brazil' && normalizedCaseCountry === 'brasil') ||
+                                    (normalizedFilterCountry === 'brasil' && normalizedCaseCountry === 'brazil')
+                                );
+
+                                if (!exactMatch && !aliasMatch) {
+                                    visible = false;
+                                }
+                            }
+                        }
+
+                        // Bounding box filter
+                        if (currentFilterBounds && visible) {
+                            const entity = caseEntities[caseId];
+                            if (entity && entity.position) {
+                                const pos = entity.position.getValue(Cesium.JulianDate.now());
+                                if (pos) {
+                                    const cart = Cesium.Cartographic.fromCartesian(pos);
+                                    const lon = Cesium.Math.toDegrees(cart.longitude);
+                                    const lat = Cesium.Math.toDegrees(cart.latitude);
+
+                                    if (lon < currentFilterBounds.west || lon > currentFilterBounds.east ||
+                                        lat < currentFilterBounds.south || lat > currentFilterBounds.north) {
+                                        visible = false;
+                                    }
+                                }
+                            }
+                        }
+
+                        return visible;
+                    }
+
+                    // Collect ALL case IDs from both entities and data store
+                    const allCaseIds = new Set([
+                        ...Object.keys(caseEntities),
+                        ...Object.keys(caseDataStore)
+                    ]);
+
+                    // Filter all cases
+                    allCaseIds.forEach(caseId => {
+                        const data = caseDataStore[caseId];
+                        const visible = checkCaseVisibility(caseId, data);
+
+                        // Update map entity visibility
+                        const entity = caseEntities[caseId];
+                        if (entity && entity.billboard && entity.position) {
+                            const pos = entity.position.getValue(Cesium.JulianDate.now());
+                            if (pos) {
+                                const cart = Cesium.Cartographic.fromCartesian(pos);
+                                const lon = Cesium.Math.toDegrees(cart.longitude);
+                                const lat = Cesium.Math.toDegrees(cart.latitude);
+                                // Never show (0,0) placeholders
+                                const isPlaceholder = Math.abs(lon) < 1 && Math.abs(lat) < 1;
+                                entity.billboard.show = visible && !isPlaceholder;
+                            } else {
+                                entity.billboard.show = false;
+                            }
+                        }
+
+                        // Update ALL card types visibility
+                        // Try multiple selectors to find the card
+                        const cardById = document.getElementById(`case-${caseId}`);
+                        const cardByDataAttr = document.querySelector(`.result-card[data-case-id="${caseId}"]`);
+                        const placeholderCard = document.getElementById(`card-placeholder-${caseId}`);
+
+                        [cardById, cardByDataAttr, placeholderCard].forEach(card => {
+                            if (card) {
+                                card.style.display = visible ? 'block' : 'none';
+                            }
+                        });
+
+                        if (visible) {
+                            visibleCount++;
+                            visibleCaseIds.push(caseId);
+                        }
+                    });
+
+                    // ALSO: Hide any result cards that don't have data in caseDataStore 
+                    // (orphaned cards that shouldn't be visible when filtering)
+                    if (locationFilter) {
+                        document.querySelectorAll('.result-card').forEach(card => {
+                            const cardCaseId = card.dataset.caseId || card.id?.replace('case-', '');
+                            if (cardCaseId && !caseDataStore[cardCaseId]) {
+                                card.style.display = 'none';
+                            }
+                        });
+                    }
+
+                    console.log(`Filter result: ${visibleCount} cases visible`);
+
+                    // If no cases match the filter, show a message
+                    if (visibleCount === 0 && locationFilter) {
+                        const resultsContainer = document.getElementById('results-container');
+                        if (resultsContainer) {
+                            // Check if message already exists
+                            let noResultsMsg = document.getElementById('no-filter-results-msg');
+                            if (!noResultsMsg) {
+                                noResultsMsg = document.createElement('div');
+                                noResultsMsg.id = 'no-filter-results-msg';
+                                noResultsMsg.style.cssText = 'padding: 20px; text-align: center; color: #aaa; font-style: italic;';
+                                resultsContainer.prepend(noResultsMsg);
+                            }
+                            noResultsMsg.textContent = `No cases found in ${locationFilter}. Try a different country or clear the filter.`;
+                            noResultsMsg.style.display = 'block';
+                        }
+                    } else {
+                        // Hide the no-results message if it exists
+                        const noResultsMsg = document.getElementById('no-filter-results-msg');
+                        if (noResultsMsg) noResultsMsg.style.display = 'none';
+                    }
+
+                    // If filters applied and we have visible cases, trigger AI analysis
+                    if (visibleCount > 0 && (locationFilter || currentFilterBounds || yearStart > 0 || yearEnd < 9999)) {
+                        triggerFilteredAnalysis(visibleCaseIds);
+                    }
+                };
+
+                // Trigger LLM analysis for filtered cases
+                async function triggerFilteredAnalysis(caseIds) {
+                    if (!currentQuery) return;
+
+                    // Sort by similarity (highest first)
+                    const sortedIds = caseIds.sort((a, b) => {
+                        const simA = caseDataStore[a]?.similarity_percent || 0;
+                        const simB = caseDataStore[b]?.similarity_percent || 0;
+                        return simB - simA;
+                    });
+
+                    const topIds = sortedIds.slice(0, 10); // Top 10
+
+                    // Separate into: already analyzed vs need analysis
+                    const alreadyAnalyzed = [];
+                    const needsAnalysis = [];
+
+                    topIds.forEach(id => {
+                        const data = caseDataStore[id];
+                        if (data && data.llm_response) {
+                            // Already has analysis
+                            alreadyAnalyzed.push(id);
+                        } else if (data) {
+                            // Needs analysis
+                            needsAnalysis.push(id);
+                        }
+                    });
+
+                    console.log(`Filtered: ${alreadyAnalyzed.length} already analyzed, ${needsAnalysis.length} need analysis`);
+
+                    // Rebuild the results panel with correct order
+                    const resultsArea = document.getElementById('results-area');
+                    resultsArea.innerHTML = '';
+
+                    // Add existing analyzed cards (in order)
+                    topIds.forEach(id => {
+                        const data = caseDataStore[id];
+                        if (!data) return;
+
+                        if (data.llm_response) {
+                            // Create card from existing data
+                            updateCaseCard({ type: 'case', result: data });
+                        } else {
+                            // Create placeholder for pending analysis
+                            const card = document.createElement('div');
+                            card.className = 'result-card';
+                            card.id = `case-${id}`;
+                            card.dataset.caseId = id;
+                            card.innerHTML = `
+                                <div class="loading-spinner"></div>
+                                <span style="color: var(--text-secondary)">Analyzing: ${data.title.substring(0, 40)}...</span>
+                            `;
+                            resultsArea.appendChild(card);
+                        }
+                    });
+
+                    // If nothing needs analysis, we're done
+                    if (needsAnalysis.length === 0) {
+                        updateStatus('Filter applied');
+                        return;
+                    }
+
+                    updateStatus(`Analyzing ${needsAnalysis.length} new cases...`);
+
+                    try {
+                        const response = await fetch('/analyze_filtered', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ case_ids: needsAnalysis, query: currentQuery, use_gemini: useGemini })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.results) {
+                            data.results.forEach(result => {
+                                // Store the analysis in caseDataStore
+                                caseDataStore[String(result.id)] = {
+                                    ...caseDataStore[String(result.id)],
+                                    ...result
+                                };
+                                updateCaseCard({ type: 'case', result: result });
+                                // Update map pin location if we have new coords
+                                if (result.location) {
+                                    updateMapPinLocation(result.id, result.location, result.location_coords);
+                                }
+                            });
+                        }
+
+                        updateStatus('Analysis Complete');
+                    } catch (error) {
+                        console.error('Filter analysis error:', error);
+                        updateStatus('Analysis failed', 'error');
+                    }
+                }
+
+                // Clear all filters
+                window.clearFilters = function () {
+                    document.getElementById('filter-year-start').value = '';
+                    document.getElementById('filter-year-end').value = '';
+                    document.getElementById('filter-location').value = '';
+                    currentFilterBounds = null;
+
+                    // Show all entities on the map
+                    Object.keys(caseEntities).forEach(caseId => {
+                        const entity = caseEntities[caseId];
+                        if (entity) {
+                            entity.show = true;
+                            if (entity.billboard) {
+                                entity.billboard.show = true;
+                            }
+                        }
+                    });
+
+                    // Show all cards in the results panel
+                    const allCards = document.querySelectorAll('.case-card');
+                    allCards.forEach(card => {
+                        card.style.display = 'block';
+                    });
+
+                    console.log('Filters cleared, all cases restored');
+                };
+
+                // Remove credits
+                viewer.cesiumWidget.creditContainer.style.display = "none";
+
+                // Interaction handler
+                const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+                // HOVER HANDLER (Tooltip)
+                handler.setInputAction(function (movement) {
+                    const pickedObject = viewer.scene.pick(movement.endPosition);
+                    const tooltip = document.getElementById('map-tooltip');
+
+                    // COUNTRY CLICK MODE: Show nearest country on hover
+                    if (countryClickMode && !Cesium.defined(pickedObject)) {
+                        const cartesian = viewer.camera.pickEllipsoid(movement.endPosition);
+                        if (cartesian) {
+                            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                            const lon = Cesium.Math.toDegrees(cartographic.longitude);
+                            const lat = Cesium.Math.toDegrees(cartographic.latitude);
+
+                            // Find nearest country
+                            let nearestCountry = null;
+                            let minDist = Infinity;
+                            Object.entries(COUNTRY_COORDS).forEach(([name, coords]) => {
+                                const dist = Math.sqrt(Math.pow(coords[0] - lon, 2) + Math.pow(coords[1] - lat, 2));
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    nearestCountry = name;
+                                }
+                            });
+
+                            if (nearestCountry && minDist < 20) {
+                                tooltip.style.display = 'block';
+                                tooltip.style.left = movement.endPosition.x + 10 + 'px';
+                                tooltip.style.top = movement.endPosition.y + 10 + 'px';
+                                tooltip.innerHTML = `<strong style="color:#22c55e">📍 ${nearestCountry}</strong><br><small>Click to filter</small>`;
+                                document.body.style.cursor = 'pointer';
+                            } else {
+                                tooltip.style.display = 'none';
+                            }
+                        }
+                        return;
+                    }
+
+                    if (Cesium.defined(pickedObject) && pickedObject.id) {
+                        const caseId = pickedObject.id.id;
+                        const data = caseDataStore[caseId];
+
+                        if (data) {
+                            tooltip.style.display = 'block';
+                            tooltip.style.left = movement.endPosition.x + 10 + 'px';
+                            tooltip.style.top = movement.endPosition.y + 10 + 'px';
+                            tooltip.innerHTML = `
+                                <strong style="color:#0ea5e9">${data.similarity_percent}% Match</strong><br>
+                                ${data.title.substring(0, 50)}...<br>
+                                <small style="color:#94a3b8">${data.pub_date || ''}</small>
+                            `;
+                            document.body.style.cursor = 'pointer';
+                        }
+                    } else {
+                        tooltip.style.display = 'none';
+                        if (!countryClickMode && !dragSelectMode) {
+                            document.body.style.cursor = 'default';
+                        }
+                    }
+                }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+                // CLICK HANDLER
+                handler.setInputAction(function (movement) {
+                    const pickedObject = viewer.scene.pick(movement.position);
+
+                    // COUNTRY CLICK MODE: Get clicked location and filter
+                    if (countryClickMode && !Cesium.defined(pickedObject)) {
+                        const cartesian = viewer.camera.pickEllipsoid(movement.position);
+                        if (cartesian) {
+                            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                            const clickLon = Cesium.Math.toDegrees(cartographic.longitude);
+                            const clickLat = Cesium.Math.toDegrees(cartographic.latitude);
+
+                            // Find nearest country from COUNTRY_COORDS
+                            let nearestCountry = null;
+                            let minDist = Infinity;
+
+                            Object.entries(COUNTRY_COORDS).forEach(([name, coords]) => {
+                                const dist = Math.sqrt(Math.pow(coords[0] - clickLon, 2) + Math.pow(coords[1] - clickLat, 2));
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    nearestCountry = name;
+                                }
+                            });
+
+                            if (nearestCountry && minDist < 20) { // Within ~20 degrees
+                                console.log(`Country click: ${nearestCountry}`);
+                                document.getElementById('filter-location').value = nearestCountry;
+                                zoomToLocation(nearestCountry);
+                                applyFilters();
+                            }
+                        }
+                        return; // Don't process pin click in country mode
+                    }
+
+                    if (Cesium.defined(pickedObject) && pickedObject.id) {
+                        const caseId = pickedObject.id.id;
+                        const caseData = caseDataStore[caseId];
+
+                        // Always try to highlight/scroll to the case in the list
+                        highlightCaseInList(caseId);
+
+                        // Check if this is an extended case that needs report generation
+                        const existingCard = document.querySelector(`[data-case-id="${caseId}"]`) ||
+                            document.getElementById(`case-${caseId}`);
+
+                        if (!existingCard && caseData) {
+                            // Extended case without card: trigger on-demand report generation
+                            console.log(`[PRIORITY] Generating report for extended case ${caseId}`);
+                            triggerPriorityReport(caseId, caseData);
+                        }
+
+                        // Fly to - PERPENDICULAR view (straight down)
+                        const entity = pickedObject.id;
+                        const position = entity.position.getValue(Cesium.JulianDate.now());
+                        if (position) {
+                            const cartographic = Cesium.Cartographic.fromCartesian(position);
+
+                            // Custom selection indicator - ground-clamped circle
+                            showSelectionIndicator(cartographic.longitude, cartographic.latitude);
+
+                            viewer.camera.flyTo({
+                                destination: Cesium.Cartesian3.fromRadians(
+                                    cartographic.longitude,
+                                    cartographic.latitude,
+                                    3000000 // 3000km altitude for good zoom
+                                ),
+                                orientation: {
+                                    heading: 0,
+                                    pitch: Cesium.Math.toRadians(-90), // Straight down (perpendicular)
+                                    roll: 0
+                                },
+                                duration: 1.5
+                            });
+                        }
+                    }
+                }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+                // Custom selection indicator entity
+                let selectionIndicatorEntity = null;
+
+                function showSelectionIndicator(lon, lat) {
+                    // Remove previous indicator
+                    if (selectionIndicatorEntity) {
+                        viewer.entities.remove(selectionIndicatorEntity);
+                    }
+
+                    // Create ground-clamped ellipse at pin position
+                    // Small size (50km radius) centered on the pin tip
+                    selectionIndicatorEntity = viewer.entities.add({
+                        position: Cesium.Cartesian3.fromRadians(lon, lat),
+                        ellipse: {
+                            semiMajorAxis: 50000, // 50km - small circle
+                            semiMinorAxis: 50000,
+                            height: 0,
+                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            material: Cesium.Color.TRANSPARENT,
+                            outline: true,
+                            outlineColor: Cesium.Color.LIMEGREEN,
+                            outlineWidth: 3,
+                            // This ensures it's hidden when behind the globe
+                            classificationType: Cesium.ClassificationType.TERRAIN
+                        }
+                    });
+                }
+
+                function hideSelectionIndicator() {
+                    if (selectionIndicatorEntity) {
+                        viewer.entities.remove(selectionIndicatorEntity);
+                        selectionIndicatorEntity = null;
+                    }
+                }
+
+                console.log("Cesium initialized successfully");
+            } catch (e) {
+                console.error("Cesium Init Error:", e);
+                document.getElementById('cesiumContainer').innerHTML =
+                    `<div style="color:white; padding:20px;">Map failed to load: ${e.message}</div>`;
+                updateStatus("Map initialization failed.", "error");
+            }
+        }
+
+        // Initialize Map
+        initMap();
+
+        // --- APP LOGIC ---
+        let searchActive = false;
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') performSearch();
+        }
+
+        async function performSearch() {
+            if (searchActive) return;
+            const query = document.getElementById('query-input').value.trim();
+            if (!query) return;
+
+            try {
+                // Reset UI
+                startSearchUI();
+
+                // Clear Map (Safely)
+                if (typeof viewer !== 'undefined' && viewer && viewer.entities) {
+                    try {
+                        viewer.entities.removeAll();
+                    } catch (e) {
+                        console.warn("Could not clear map entities:", e);
+                    }
+                }
+                caseEntities = {};
+
+                updateStatus("Step 1: Connecting to server..."); // DEBUG UI
+
+                const response = await fetch('/query_stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, use_gemini: useGemini })
+                });
+
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                updateStatus("Step 2: Connected. Reading stream..."); // DEBUG UI
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let totalBytes = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    totalBytes += value.length;
+
+                    // Append new chunk to buffer
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Process complete messages (split by \n\n)
+                    const parts = buffer.split('\n\n');
+
+                    // Keep the last part in buffer (it might be incomplete)
+                    buffer = parts.pop();
+
+                    for (const part of parts) {
+                        if (part.trim().startsWith('data: ')) {
+                            try {
+                                const jsonStr = part.trim().slice(6);
+                                const data = JSON.parse(jsonStr);
+                                handleStreamData(data);
+                            } catch (e) {
+                                console.error('JSON Parse Error:', e, part);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Fetch/Stream Error:", error);
+                updateStatus(`Error: ${error.message} (See Console)`, 'error');
+            } finally {
+                searchActive = false;
+            }
+        }
+
+        function handleStreamData(data) {
+            if (data.type === 'status') {
+                updateStatus(data.message);
+            }
+            else if (data.type === 'initial_locations') {
+                // EXTENDED MAP: Receives ALL cases >70% for map plotting
+                console.log(`Received ${data.cases.length} cases for map (>70% similarity)`);
+
+                // Store raw data for priority requests (use string IDs)
+                data.cases.forEach(c => {
+                    caseDataStore[String(c.id)] = c;
+                });
+
+                // Plot ALL cases on map
+                plotCasesOnMap(data.cases);
+            }
+            else if (data.type === 'panel_cases') {
+                // TOP 10 cases for left panel placeholders
+                console.log(`Received ${data.cases.length} cases for panel`);
+                createPlaceholders(data.cases.length);
+
+                // Associate Placeholders (use string IDs)
+                data.cases.forEach((c, index) => {
+                    const p = document.getElementById(`card-placeholder-${index}`);
+                    if (p) p.dataset.caseId = String(c.id);
+                });
+            }
+            else if (data.type === 'metadata') {
+                updateStatus(`Found ${data.found_cases} cases (${data.map_cases || data.found_cases} on map)`);
+            }
+            else if (data.type === 'case') {
+                // Remove from pending list/spinner if valid
+                updateCaseCard(data);
+
+                // CRITICAL FIX: Sync Map with "Trusted" Location
+                if (data.result.location) {
+                    // Pass explicit coords if available (from Geocoding API), otherwise just name
+                    updateMapPinLocation(data.result.id, data.result.location, data.result.location_coords);
+                }
+            }
+            else if (data.type === 'complete') {
+                updateStatus('Analysis Complete');
+            }
+        }
+
+        function updateMapPinLocation(caseId, locationName, explicitCoords) {
+            const sid = String(caseId); // Force string ID for consistency
+            console.log(`[MAP_DEBUG] Updating pin for Case ${sid}. Location: ${locationName}`);
+
+            // Priority: Explicit Coords from API > Dictionary Lookup
+            let coords = explicitCoords ? [explicitCoords.lon, explicitCoords.lat] : COUNTRY_COORDS[locationName];
+
+            if (explicitCoords) {
+                console.log(`[MAP_DEBUG] ✅ Using Explicit Coords:`, explicitCoords);
+            } else if (coords) {
+                console.log(`[MAP_DEBUG] ⚠️ Using Dictionary Coords:`, coords);
+            } else {
+                console.log(`[MAP_DEBUG] ❌ No coords found for ${locationName}`);
+            }
+
+            if (coords && caseEntities[sid]) {
+                const entity = caseEntities[sid];
+
+                // Add jitter (smaller jitter for explicit coords since they are precise)
+                const jitterScale = explicitCoords ? 0.001 : 2.0;
+
+                const jitterLat = (Math.random() - 0.5) * jitterScale;
+                const jitterLon = (Math.random() - 0.5) * jitterScale;
+
+                // Animate or jump to new position
+                entity.position = Cesium.Cartesian3.fromDegrees(coords[0] + jitterLon, coords[1] + jitterLat);
+
+                // CRITICAL: Show the pin if it was hidden (placeholder case)
+                if (entity.billboard) {
+                    entity.billboard.show = true;
+                }
+
+                console.log(`[MAP_DEBUG] 📍 Entity moved to`, coords);
+
+                // Update datastore just in case
+                if (caseDataStore[sid]) {
+                    caseDataStore[sid].location = locationName; // for tooltip
+                }
+            } else {
+                if (!caseEntities[sid]) {
+                    console.log(`[MAP_DEBUG] ❌ Entity lookup failed for Case ${sid}. Keys available:`, Object.keys(caseEntities));
+                }
+            }
+        }
+
+        // --- MAPPING FUNCTIONS ---
+
+        // Basic geocoding cache (Country Name -> Lat/Lon)
+        // In prod use a real geocoding service, this is a heuristic lookup
+        const COUNTRY_COORDS = {
+            "USA": [-95.7129, 37.0902], "United States": [-95.7129, 37.0902],
+            "UK": [-3.4360, 55.3781], "United Kingdom": [-3.4360, 55.3781],
+            "China": [104.1954, 35.8617],
+            "India": [78.9629, 20.5937],
+            "Japan": [138.2529, 36.2048],
+            "Brazil": [-51.9253, -14.2350],
+            "Germany": [10.4515, 51.1657],
+            "France": [2.2137, 46.2276],
+            "Italy": [12.5674, 41.8719],
+            "Spain": [-3.7492, 40.4637],
+            "Canada": [-106.3468, 56.1304],
+            "Australia": [133.7751, -25.2744],
+            "Mexico": [-102.5528, 23.6345],
+            "Russia": [105.3188, 61.5240],
+            "South Africa": [22.9375, -30.5595],
+            "Egypt": [30.8025, 26.8206],
+            "Nigeria": [8.6753, 9.0820],
+            "Kenya": [37.9062, -0.0236],
+            "Argentina": [-63.6167, -38.4161],
+            "Pakistan": [69.3451, 30.3753],
+            "Korea": [127.7669, 35.9078], "South Korea": [127.7669, 35.9078], "North Korea": [127.5101, 40.3399],
+            "Taiwan": [120.9605, 23.6978],
+            "Iran": [53.6880, 32.4279],
+            "Turkey": [35.2433, 38.9637],
+            "Indonesia": [113.9213, -0.7893],
+            "Saudi Arabia": [45.0792, 23.8859],
+            "Congo": [21.7587, -4.0383], "Democratic Republic of the Congo": [21.7587, -4.0383], "DRC": [21.7587, -4.0383],
+            "Thailand": [100.9925, 15.8700],
+            "Vietnam": [108.2772, 14.0583],
+            "Colombia": [-74.2973, 4.5709],
+            "Peru": [-75.0152, -9.1900],
+            "Chile": [-71.5430, -35.6751],
+            "Netherlands": [5.2913, 52.1326],
+            "Sweden": [18.6435, 60.1282],
+            "Switzerland": [8.2275, 46.8182],
+            "Belgium": [4.4699, 50.5039],
+            "Austria": [14.5501, 47.5162],
+            "Greece": [21.8243, 39.0742],
+            "Portugal": [-8.2245, 39.3999],
+            "Denmark": [9.5018, 56.2639],
+            "Norway": [8.4689, 60.4720],
+            "Finland": [25.7482, 61.9241],
+            "Poland": [19.1451, 51.9194],
+            "Czech Republic": [15.4730, 49.8175],
+            "Hungary": [19.5033, 47.1625],
+            "Romania": [24.9668, 45.9432],
+            "Ukraine": [31.1656, 48.3794],
+            "Israel": [34.8516, 31.0461],
+            "UAE": [53.8478, 23.4241],
+            "Bangladesh": [90.3563, 23.6850],
+            "Malaysia": [101.9758, 4.2105],
+            "Philippines": [121.7740, 12.8797],
+            "Singapore": [103.8198, 1.3521],
+            "New Zealand": [174.8860, -40.9006],
+            "Uganda": [32.2903, 1.3733],
+            "Rwanda": [29.8739, -1.9403],
+            "Ethiopia": [40.4897, 9.1450],
+            "Sudan": [30.2176, 12.8628],
+            "Mali": [-3.9962, 17.5707],
+            "Ghana": [-1.0232, 7.9465],
+            "Senegal": [-14.4524, 14.4974],
+            "Morocco": [-7.0926, 31.7917],
+            "Algeria": [1.6596, 28.0339],
+            "Venezuela": [-66.5897, 6.4238],
+            "Cuba": [-77.7812, 21.5218],
+            "Angola": [17.8739, -11.2027], "Zambia": [27.8493, -13.1339], "Tanzania": [34.8888, -6.3690],
+            "Zimbabwe": [29.1549, -19.0154], "Mozambique": [35.5296, -18.6657], "Botswana": [24.6849, -22.3285],
+            "Namibia": [18.4904, -22.9576], "Madagascar": [46.8691, -18.7669], "Cameroon": [12.3547, 7.3697],
+            "Gabon": [11.6094, -0.8037], "Central African Republic": [20.9394, 6.6111], "Chad": [18.7322, 15.4542],
+            "Niger": [8.0817, 17.6078], "Burkina Faso": [-1.5616, 12.2383], "Ivory Coast": [-5.5471, 7.5400],
+            "Togo": [0.8248, 8.6195], "Benin": [2.3158, 9.3077], "Somalia": [46.1996, 5.1521],
+            "Unknown": null
+        };
+
+        // Helper: Extract country from full location string
+        // E.g., "University of Amsterdam, Amsterdam, The Netherlands" → "Netherlands"
+        function extractCountryFromLocation(locationStr) {
+            if (!locationStr) return null;
+
+            // List of country names to match (covers most common variations)
+            const knownCountries = Object.keys(COUNTRY_COORDS).filter(k => k !== "Unknown");
+
+            // Also add common variations
+            const variations = {
+                "The Netherlands": "Netherlands",
+                "United States": "USA",
+                "United Kingdom": "UK",
+                "United Arab Emirates": "UAE",
+                "South Korea": "Korea",
+                "People's Republic of China": "China"
+            };
+
+            const locLower = locationStr.toLowerCase();
+
+            // Check variations first
+            for (const [variant, normalized] of Object.entries(variations)) {
+                if (locLower.includes(variant.toLowerCase())) {
+                    return normalized;
+                }
+            }
+
+            // Check known countries
+            for (const country of knownCountries) {
+                // Word boundary match to avoid partial matches
+                const regex = new RegExp('\\b' + country.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+                if (regex.test(locationStr)) {
+                    return country;
+                }
+            }
+
+            return null;
+        }
+
+        function plotCasesOnMap(cases) {
+            logToUi(`[MAP] Plotting ${cases.length} cases`);
+            viewer.entities.removeAll();
+            caseEntities = {}; // Reset
+
+            // Zoom to world view
+            viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(0, 20, 20000000) });
+
+            cases.forEach(c => {
+                const sid = String(c.id); // Force string ID for consistency
+                const location = c.location_heuristic || "Unknown";
+                let coords = COUNTRY_COORDS[location];
+
+                // CRITICAL FIX: Always create an entity, even if no initial coords
+                // Use a default position (hidden under the map center) if no heuristic coords
+                // The entity will be moved later when geocoded coords arrive
+                if (!coords) {
+                    coords = [0, 0]; // Default position - will be updated by updateMapPinLocation
+                    logToUi(`[MAP] ⚠️ No heuristic coords for Case ${sid}, using placeholder`);
+                }
+
+                // Add some random jitter so points don't stack perfectly on top of each other
+                const jitterLat = (Math.random() - 0.5) * 2.0;
+                const jitterLon = (Math.random() - 0.5) * 2.0;
+
+                // Determine if we have VALID coords (not the 0,0 placeholder)
+                const hasValidCoords = coords && !(coords[0] === 0 && coords[1] === 0);
+
+                const entity = viewer.entities.add({
+                    id: String(c.id), // Ensure string ID
+                    position: Cesium.Cartesian3.fromDegrees(coords[0] + jitterLon, coords[1] + jitterLat),
+                    billboard: {
+                        image: createPinImage(c.similarity_percent),
+                        width: 32,
+                        height: 48,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                        // ONLY show pins with valid coordinates (not 0,0 placeholder)
+                        show: hasValidCoords && (location !== "Unknown")
+                    },
+                    properties: c // Attach data
+                });
+
+                caseEntities[sid] = entity;
+                caseDataStore[sid] = c; // Ensure data store is populated
+            });
+        }
+
+        function createPinImage(score) {
+            // Create a canvas to draw a location pin (chincheta) dynamically
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 48; // Taller for pin shape
+            const context = canvas.getContext('2d');
+
+            // COLOR GRADIENT: Score 90%+ = Green, Score 70% = Red/Orange
+            const normalized = Math.max(0, Math.min(1, (score - 70) / 20));
+
+            // Interpolate from Red (0) → Yellow (0.5) → Green (1)
+            let r, g, b;
+            if (normalized < 0.5) {
+                r = 255;
+                g = Math.round(normalized * 2 * 255);
+                b = 0;
+            } else {
+                r = Math.round((1 - (normalized - 0.5) * 2) * 255);
+                g = 255;
+                b = 0;
+            }
+
+            const color = `rgb(${r}, ${g}, ${b})`;
+
+            // Draw location pin shape
+            context.beginPath();
+            // Pin body (teardrop shape)
+            context.moveTo(16, 44); // Bottom point
+            context.bezierCurveTo(16, 44, 4, 26, 4, 16); // Left curve
+            context.arc(16, 16, 12, Math.PI, 0, false); // Top arc
+            context.bezierCurveTo(28, 26, 16, 44, 16, 44); // Right curve
+            context.closePath();
+
+            // Fill with color
+            context.fillStyle = color;
+            context.fill();
+
+            // White border
+            context.strokeStyle = '#ffffff';
+            context.lineWidth = 2;
+            context.stroke();
+
+            // Inner white circle (for contrast)
+            context.beginPath();
+            context.arc(16, 16, 5, 0, 2 * Math.PI, false);
+            context.fillStyle = '#ffffff';
+            context.fill();
+
+            return canvas.toDataURL();
+        }
+
+        // --- UI HELPERS ---
+
+        function startSearchUI() {
+            searchActive = true;
+            document.getElementById('results-area').innerHTML = '';
+            document.getElementById('status-message').innerHTML = '<div class="loading-spinner"></div> Initializing search...';
+            document.getElementById('status-message').classList.add('active'); // Show it manually
+            caseDataStore = {}; // Reset store
+        }
+
+        function updateStatus(msg, type = 'info') {
+            const statusEl = document.getElementById('status-message');
+
+            // If message is "Ready" or empty, hide the status bar
+            if (!msg || msg === 'Ready' || msg.includes('Analysis Complete')) {
+                statusEl.innerText = '';
+                statusEl.classList.remove('active');
+                return;
+            }
+
+            // Otherwise show it
+            statusEl.innerText = msg;
+            statusEl.classList.add('active');
+
+            if (type === 'error') {
+                statusEl.style.color = '#ef4444';
+            } else {
+                statusEl.style.color = '#ffffff';
+            }
+        }
+
+        function createPlaceholders(count) {
+            const container = document.getElementById('results-area');
+            for (let i = 0; i < count; i++) {
+                const div = document.createElement('div');
+                div.id = `card-placeholder-${i}`;
+                div.className = 'result-card';
+                div.innerHTML = `<div style="color: #94a3b8;">Loading analysis...</div>`;
+                container.appendChild(div);
+            }
+        }
+
+        function updateCaseCard(data) {
+            const index = data.case_index;
+            const result = data.result;
+
+            // Try to find placeholder or append new
+            let card = document.getElementById(`card-placeholder-${index}`);
+
+            // Also check if we already have the real card (e.g. from priority)
+            const existingCard = document.getElementById(`case-${result.id}`);
+            if (existingCard) {
+                card = existingCard;
+            } else if (!card) {
+                card = document.createElement('div');
+                document.getElementById('results-area').appendChild(card);
+            }
+
+            card.id = `case-${result.id}`;
+            card.className = 'result-card';
+            card.onclick = () => highlightCaseOnMap(result.id);
+
+            // Update Store with full details
+            caseDataStore[result.id] = { ...caseDataStore[result.id], ...result };
+
+            const locationDict = result.location ? `<span class="tag tag-location"><i class="fas fa-map-marker-alt"></i> ${result.location}</span>` :
+                (result.location_heuristic ? `<span class="tag tag-location"><i class="fas fa-map-marker-alt"></i> ${result.location_heuristic} (Est.)</span>` : '');
+
+            // Contact Info HTML
+            const contactHtml = result.contact_email ?
+                `<span class="tag tag-info" title="Corresponding Author"><i class="fas fa-envelope"></i> ${result.contact_email}</span>` : '';
+
+            card.innerHTML = `
+                <div class="meta-tags">
+                    <span class="tag tag-match">${result.similarity_percent}% Match</span>
+                    ${result.pub_date ? `<span class="tag tag-info"><i class="fas fa-calendar"></i> ${result.pub_date}</span>` : ''}
+                    ${locationDict}
+                    ${contactHtml}
+                    <span class="tag tag-info">${result.age} • ${result.gender}</span>
+                </div>
+                <h3>${result.title}</h3>
+                <div class="llm-content">${marked.parse(result.llm_response || '')}</div>
+                
+                <div class="card-actions">
+                    <button class="btn-sm" onclick="openChat('${result.id}'); event.stopPropagation();">
+                        <i class="fas fa-comments"></i> Ask about this case
+                    </button>
+                    ${result.pubmed_url ? `<a href="${result.pubmed_url}" target="_blank" class="btn-sm" style="text-decoration:none;" onclick="event.stopPropagation();"><i class="fas fa-external-link-alt"></i> PubMed</a>` : ''}
+                    ${result.contact_email ? `<a href="mailto:${result.contact_email}?subject=Inquiry about clinical case: ${encodeURIComponent(result.title)}" class="btn-sm" style="text-decoration:none; background: linear-gradient(135deg, #10b981, #059669); color: white;" onclick="event.stopPropagation();"><i class="fas fa-envelope"></i> Contact</a>` : ''}
+                </div>
+            `;
+        }
+
+        // PRIORITIZATION LOGIC
+        async function prioritizeCase(caseId) {
+            const placeholder = document.querySelector(`.result-card[data-case-id="${caseId}"]`);
+            if (placeholder && placeholder.innerHTML.includes('Loading analysis')) {
+                // It's loading! Trigger priority.
+                placeholder.innerHTML = `<div class="loading-spinner"></div> <span style="color:var(--primary)">Prioritizing analysis...</span>`;
+
+                // Get data from store
+                const rawData = caseDataStore[caseId];
+                if (!rawData) return;
+
+                try {
+                    const response = await fetch('/analyze_case_prioritized', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: document.getElementById('query-input').value,
+                            content: rawData.content,
+                            case_id: caseId,
+                            use_gemini: useGemini
+                        })
+                    });
+
+                    const json = await response.json();
+
+                    placeholder.innerHTML = `
+                       <div style="border-left: 3px solid var(--accent); padding-left: 10px;">
+                           <h3>${rawData.title}</h3>
+                           <div class="llm-content">${marked.parse(json.llm_response || '')}</div>
+                           <div class="card-actions">
+                                <button class="btn-sm" onclick="openChat('${caseId}'); event.stopPropagation();"><i class="fas fa-comments"></i> Ask</button>
+                           </div>
+                       </div>
+                    `;
+                } catch (e) {
+                    console.error("Priority load failed", e);
+                    placeholder.innerHTML = `<span style="color:red">Priority load failed. Waiting for stream...</span>`;
+                }
+            }
+        }
+
+        // Trigger on-demand report generation for extended (non-top-10) cases
+        async function triggerPriorityReport(caseId, caseData) {
+            // Create a new card at the TOP of the results area for this extended case
+            const resultsArea = document.getElementById('results-area');
+            const newCard = document.createElement('div');
+            newCard.className = 'result-card active-pin';
+            newCard.id = `case-${caseId}`;
+            newCard.dataset.caseId = caseId;
+            newCard.innerHTML = `
+                <h3>${caseData.title?.substring(0, 80) || 'Extended Case'}...</h3>
+                <p><strong>Similarity:</strong> ${caseData.similarity_percent?.toFixed(1) || '?'}%</p>
+                <div class="loading-spinner"></div>
+                <p><em>Generating priority analysis...</em></p>
+            `;
+
+            // Insert at top
+            resultsArea.insertBefore(newCard, resultsArea.firstChild);
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Call backend priority endpoint
+            try {
+                const response = await fetch('/priority_case', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ case_id: caseId, use_gemini: useGemini })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    // Update the card with the result
+                    if (result.result) {
+                        handleStreamData({ type: 'case', result: result.result });
+                    }
+                } else {
+                    newCard.innerHTML += `<p style="color:red;">Failed to generate report</p>`;
+                }
+            } catch (e) {
+                console.error('Priority report error:', e);
+                newCard.innerHTML += `<p style="color:red;">Error: ${e.message}</p>`;
+            }
+        }
+
+        function highlightCaseInList(caseId) {
+            // Remove active class from all
+            document.querySelectorAll('.result-card').forEach(c => c.classList.remove('active-pin'));
+
+            // Find by ID directly (if loaded) or by data attribute (if placeholder)
+            let card = document.getElementById(`case-${caseId}`);
+            if (!card) {
+                card = document.querySelector(`.result-card[data-case-id="${caseId}"]`);
+            }
+
+            if (card) {
+                card.classList.add('active-pin');
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // TRIGGER PRIORITY if it's a placeholder
+                if (card.innerHTML.includes('Loading analysis') && !card.innerHTML.includes('Prioritizing')) {
+                    prioritizeCase(caseId);
+                }
+            }
+        }
+
+        function highlightCaseOnMap(caseId) {
+            // Stop globe rotation when focusing on a case
+            if (window.stopGlobeRotation) window.stopGlobeRotation();
+
+            const entity = caseEntities[caseId];
+            if (entity) {
+                // PERPENDICULAR view (same as map click)
+                const position = entity.position.getValue(Cesium.JulianDate.now());
+                if (position) {
+                    const cartographic = Cesium.Cartographic.fromCartesian(position);
+                    viewer.camera.flyTo({
+                        destination: Cesium.Cartesian3.fromRadians(
+                            cartographic.longitude,
+                            cartographic.latitude,
+                            3000000 // 3000km altitude
+                        ),
+                        orientation: {
+                            heading: 0,
+                            pitch: Cesium.Math.toRadians(-90), // Straight down
+                            roll: 0
+                        },
+                        duration: 1.5
+                    });
+                }
+                highlightCaseInList(caseId);
+            }
+        }
+
+        // --- CHAT FUNCTIONS ---
+        let currentChatCaseId = null;
+        let chatHistory = [];
+
+        function openChat(caseId) {
+            currentChatCaseId = caseId;
+            chatHistory = [];
+            const data = caseDataStore[caseId];
+
+            document.getElementById('chat-modal').style.display = 'flex';
+            document.getElementById('chat-title').innerText = `Chat about: ${data.title.substring(0, 40)}...`;
+            document.getElementById('chat-messages').innerHTML = `
+                <div class="message system">
+                    Hello! I've read the case report. What would you like to know about this patient?
+                </div>
+            `;
+            document.getElementById('chat-input').focus();
+        }
+
+        function closeChat() {
+            document.getElementById('chat-modal').style.display = 'none';
+        }
+
+        function handleChatKey(e) {
+            if (e.key === 'Enter') sendChatMessage();
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            // Add user message
+            const container = document.getElementById('chat-messages');
+            container.innerHTML += `<div class="message user">${msg}</div>`;
+            input.value = '';
+            container.scrollTop = container.scrollHeight;
+
+            // Add loading state
+            const loadingId = 'chat-loading-' + Date.now();
+            container.innerHTML += `<div id="${loadingId}" class="message system"><div class="loading-spinner"></div> Thinking...</div>`;
+            container.scrollTop = container.scrollHeight;
+
+            try {
+                const response = await fetch('/chat_with_case', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: msg,
+                        content: caseDataStore[currentChatCaseId].content,
+                        history: chatHistory,
+                        use_gemini: useGemini
+                    })
+                });
+
+                const json = await response.json();
+
+                // Remove loading
+                document.getElementById(loadingId).remove();
+
+                // Add AI response
+                container.innerHTML += `<div class="message system">${marked.parse(json.answer)}</div>`;
+
+                // Update history
+                chatHistory.push({ role: 'user', content: msg });
+                chatHistory.push({ role: 'assistant', content: json.answer });
+
+            } catch (e) {
+                document.getElementById(loadingId).innerHTML = "Error: Could not reach assistant.";
+            }
+            container.scrollTop = container.scrollHeight;
+        }
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</body>
+
+</html>
